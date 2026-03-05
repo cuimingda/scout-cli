@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -37,25 +38,24 @@ func runScoutsWithConfig(cmd *cobra.Command, args []string, cfg scoutConfig) err
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "[SYSTEM]\n🔍 当前DNS：%s\n", systemDNSDisplay)
 
-	portReports := executePortChecks(args)
-	dnsReports := executeDNSChecks(args, cfg.DNS)
-
-	for i, report := range portReports {
-		checks := report.checks
-		if i < len(dnsReports) && dnsReports[i].url == report.url {
-			checks = append(checks, dnsReports[i].checks...)
-		}
-
-		fmt.Fprintf(cmd.OutOrStdout(), "\n[%s]\n", report.url)
-		for _, check := range checks {
-			mark := "✅"
-			if !check.ok {
-				mark = "❌"
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%s %s - %s\n", mark, check.name, check.detail)
-		}
+	for _, raw := range args {
+		fmt.Fprintf(cmd.OutOrStdout(), "\n[%s]\n", raw)
+		executePortChecksStreaming([]string{raw}, func(check checkPlanResult) {
+			writeCheckLine(cmd.OutOrStdout(), check)
+		})
+		executeDNSChecksStreamingWithResolvers([]string{raw}, cfg.DNS, func(check checkPlanResult) {
+			writeCheckLine(cmd.OutOrStdout(), check)
+		})
 	}
 	return nil
+}
+
+func writeCheckLine(out io.Writer, check checkPlanResult) {
+	mark := "✅"
+	if !check.ok {
+		mark = "❌"
+	}
+	fmt.Fprintf(out, "%s %s - %s\n", mark, check.name, check.detail)
 }
 
 func printValidationError(cmd *cobra.Command, err error) {

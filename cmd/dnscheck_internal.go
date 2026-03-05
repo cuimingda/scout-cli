@@ -125,6 +125,39 @@ func executeDNSChecksWithResolvers(rawURLs []string, extraDNS []string) []urlChe
 	return reports
 }
 
+func executeDNSChecksStreamingWithResolvers(rawURLs []string, extraDNS []string, write func(checkPlanResult)) {
+	for _, raw := range rawURLs {
+		plans, errs := buildDNSCheckPlans([]string{raw}, extraDNS)
+		if len(errs) > 0 {
+			for _, err := range errs {
+				write(checkPlanResult{
+					name:   "DNS解析",
+					ok:     false,
+					detail: err.Error(),
+				})
+			}
+			continue
+		}
+
+		for _, plan := range plans {
+			ips, err := executeDNSCheck(plan)
+			if err != nil {
+				write(checkPlanResult{
+					name:   "DNS解析",
+					ok:     false,
+					detail: err.Error(),
+				})
+				continue
+			}
+			write(checkPlanResult{
+				name:   "DNS解析",
+				ok:     true,
+				detail: fmt.Sprintf("%s在%s解析到%s", plan.host, plan.resolverLabel, strings.Join(ips, ",")),
+			})
+		}
+	}
+}
+
 func executeDNSCheck(plan dnsCheckPlan) ([]string, error) {
 	addrs, err := detectDNSLookup(plan.host, plan.resolverAddr, 3*time.Second)
 	if err != nil {

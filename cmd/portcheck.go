@@ -59,3 +59,44 @@ func executePortChecks(rawURLs []string) []urlCheckReport {
 	}
 	return reports
 }
+
+func executePortChecksStreaming(rawURLs []string, write func(checkPlanResult)) {
+	for _, raw := range rawURLs {
+		plans, errs := buildPortCheckPlans([]string{raw})
+		if len(errs) > 0 {
+			for _, err := range errs {
+				write(checkPlanResult{
+					name:   "端口检测",
+					ok:     false,
+					detail: err.Error(),
+				})
+			}
+			continue
+		}
+
+		if len(plans) == 0 {
+			write(checkPlanResult{
+				name:   "端口检测",
+				ok:     true,
+				detail: "未配置检测方案",
+			})
+			continue
+		}
+
+		for _, plan := range plans {
+			if err := executePortCheck(plan); err != nil {
+				write(checkPlanResult{
+					name:   "端口检测",
+					ok:     false,
+					detail: err.Error(),
+				})
+				continue
+			}
+			write(checkPlanResult{
+				name:   "端口检测",
+				ok:     true,
+				detail: fmt.Sprintf("%s的%d端口开放", plan.host, plan.port),
+			})
+		}
+	}
+}
