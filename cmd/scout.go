@@ -20,8 +20,15 @@ func runScouts(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("one or more URLs are invalid")
 	}
 
-	for _, raw := range args {
-		fmt.Fprintln(cmd.OutOrStdout(), raw)
+	for _, report := range executePortChecks(args) {
+		fmt.Fprintf(cmd.OutOrStdout(), "[%s]\n", report.url)
+		for _, check := range report.checks {
+			mark := "✅"
+			if !check.ok {
+				mark = "❌"
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s - %s\n", mark, check.name, check.detail)
+		}
 	}
 	return nil
 }

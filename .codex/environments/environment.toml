@@ -9,6 +9,10 @@ script = ""
 name = "Run"
 icon = "run"
 command = '''
+clear
 go test ./...
 go install ./cmd/scout
+scout "http://bdremux.club/announce" \
+"udp://tracker.opentrackr.org:1337/announce" \
+"https://www.google.com/"
 '''

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -33,16 +34,48 @@ func Test_validateConnectionURL(t *testing.T) {
 }
 
 func Test_runScouts(t *testing.T) {
-	cmd := &cobra.Command{Use: "scout [urls...]"}
-	cmd.SetOut(&bytes.Buffer{})
-
-	t.Run("prints each valid url", func(t *testing.T) {
+	t.Run("prints grouped check results", func(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
+		origDial := detectDial
+		defer func() { detectDial = origDial }()
+		detectDial = func(string, string, time.Duration) error { return nil }
 
 		err := runScouts(cmd, []string{
-			"https://www.google.com/sitemap.xml",
+			"http://bdremux.club/announce",
+			"udp://tracker.opentrackr.org:1337/announce",
+			"https://www.google.com/",
+		})
+		if err != nil {
+			t.Fatalf("runScouts() error = %v", err)
+		}
+
+		got := strings.TrimSpace(out.String())
+		want := strings.TrimSpace(`
+[http://bdremux.club/announce]
+✅ 端口检测 - 端口可用
+[udp://tracker.opentrackr.org:1337/announce]
+✅ 端口检测 - 端口可用
+[https://www.google.com/]
+✅ 端口检测 - 端口可用`)
+		if got != want {
+			t.Fatalf("runScouts output=%q want=%q", got, want)
+		}
+	})
+
+	t.Run("prints mixed check results", func(t *testing.T) {
+		var out bytes.Buffer
+		cmd := &cobra.Command{Use: "scout [urls...]"}
+		cmd.SetOut(&out)
+		origDial := detectDial
+		defer func() { detectDial = origDial }()
+		detectDial = func(string, string, time.Duration) error {
+			return fmt.Errorf("simulated connect failed")
+		}
+
+		err := runScouts(cmd, []string{
+			"http://bdremux.club/announce",
 			"udp://tracker.opentrackr.org:1337/announce",
 		})
 		if err != nil {
@@ -50,16 +83,17 @@ func Test_runScouts(t *testing.T) {
 		}
 
 		got := strings.TrimSpace(out.String())
-		want := strings.Join([]string{
-			"https://www.google.com/sitemap.xml",
-			"udp://tracker.opentrackr.org:1337/announce",
-		}, "\n")
+		want := strings.TrimSpace(`
+[http://bdremux.club/announce]
+❌ 端口检测 - port check failed for "http://bdremux.club/announce" (bdremux.club:80 via tcp): simulated connect failed
+[udp://tracker.opentrackr.org:1337/announce]
+❌ 端口检测 - port check failed for "udp://tracker.opentrackr.org:1337/announce" (tracker.opentrackr.org:1337 via udp): simulated connect failed`)
 		if got != want {
 			t.Fatalf("runScouts output=%q want=%q", got, want)
 		}
 	})
 
-	t.Run("returns all errors and summary when args invalid", func(t *testing.T) {
+	t.Run("returns all errors when args invalid", func(t *testing.T) {
 		var out, errBuf bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
