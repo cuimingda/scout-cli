@@ -21,7 +21,7 @@ func runScouts(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, report := range executePortChecks(args) {
-		fmt.Fprintf(cmd.OutOrStdout(), "[%s]\n", report.url)
+		fmt.Fprintf(cmd.OutOrStdout(), "\n[%s]\n", report.url)
 		for _, check := range report.checks {
 			mark := "✅"
 			if !check.ok {

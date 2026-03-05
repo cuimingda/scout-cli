@@ -108,11 +108,11 @@ func resolveNetwork(scheme string) string {
 func executePortCheck(plan portCheckPlan) error {
 	address := net.JoinHostPort(plan.host, strconv.Itoa(plan.port))
 	if err := detectDial(plan.network, address, 3*time.Second); err != nil {
-		return portCheckError(plan.url, plan, err)
+		return portCheckError(plan, err)
 	}
 	return nil
 }
 
-func portCheckError(url string, plan portCheckPlan, err error) error {
-	return fmt.Errorf("port check failed for %q (%s:%d via %s): %w", url, plan.host, plan.port, plan.network, err)
+func portCheckError(plan portCheckPlan, err error) error {
+	return fmt.Errorf("%s的%d端口未开放（%w）", plan.host, plan.port, err)
 }

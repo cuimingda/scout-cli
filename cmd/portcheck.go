@@ -1,5 +1,7 @@
 package cmd
 
+import "fmt"
+
 type checkPlanResult struct {
 	name   string
 	ok     bool
@@ -50,7 +52,7 @@ func executePortChecks(rawURLs []string) []urlCheckReport {
 			report.checks = append(report.checks, checkPlanResult{
 				name:   "端口检测",
 				ok:     true,
-				detail: "端口可用",
+				detail: fmt.Sprintf("%s的%d端口开放", plan.host, plan.port),
 			})
 		}
 		reports = append(reports, report)

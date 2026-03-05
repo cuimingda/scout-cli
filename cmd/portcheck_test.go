@@ -98,7 +98,7 @@ func Test_executePortChecks_collects_all_errors(t *testing.T) {
 		if report.checks[0].ok {
 			t.Fatalf("url=%s expected failure", report.url)
 		}
-		if !strings.Contains(report.checks[0].detail, "port check failed") {
+		if !strings.Contains(report.checks[0].detail, "端口未开放") {
 			t.Fatalf("unexpected detail: %s", report.checks[0].detail)
 		}
 	}

@@ -54,11 +54,13 @@ func Test_runScouts(t *testing.T) {
 		got := strings.TrimSpace(out.String())
 		want := strings.TrimSpace(`
 [http://bdremux.club/announce]
-✅ 端口检测 - 端口可用
+✅ 端口检测 - bdremux.club的80端口开放
+
 [udp://tracker.opentrackr.org:1337/announce]
-✅ 端口检测 - 端口可用
+✅ 端口检测 - tracker.opentrackr.org的1337端口开放
+
 [https://www.google.com/]
-✅ 端口检测 - 端口可用`)
+✅ 端口检测 - www.google.com的443端口开放`)
 		if got != want {
 			t.Fatalf("runScouts output=%q want=%q", got, want)
 		}
@@ -85,9 +87,10 @@ func Test_runScouts(t *testing.T) {
 		got := strings.TrimSpace(out.String())
 		want := strings.TrimSpace(`
 [http://bdremux.club/announce]
-❌ 端口检测 - port check failed for "http://bdremux.club/announce" (bdremux.club:80 via tcp): simulated connect failed
+❌ 端口检测 - bdremux.club的80端口未开放（simulated connect failed）
+
 [udp://tracker.opentrackr.org:1337/announce]
-❌ 端口检测 - port check failed for "udp://tracker.opentrackr.org:1337/announce" (tracker.opentrackr.org:1337 via udp): simulated connect failed`)
+❌ 端口检测 - tracker.opentrackr.org的1337端口未开放（simulated connect failed）`)
 		if got != want {
 			t.Fatalf("runScouts output=%q want=%q", got, want)
 		}
