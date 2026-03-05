@@ -18,3 +18,13 @@ func validateConnectionURL(raw string) error {
 	}
 	return nil
 }
+
+func validateConnectionURLs(args []string) []error {
+	var errs []error
+	for _, raw := range args {
+		if err := validateConnectionURL(raw); err != nil {
+			errs = append(errs, fmt.Errorf("invalid URL %q: %w", raw, err))
+		}
+	}
+	return errs
+}

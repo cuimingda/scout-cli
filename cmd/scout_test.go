@@ -59,18 +59,21 @@ func Test_runScouts(t *testing.T) {
 		}
 	})
 
-	t.Run("returns error on invalid", func(t *testing.T) {
+	t.Run("returns all errors when args invalid", func(t *testing.T) {
 		var out, errBuf bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
 		cmd.SetErr(&errBuf)
 
-		err := runScouts(cmd, []string{"google.com", "https://www.google.com"})
+		err := runScouts(cmd, []string{"google.com", "https://", "https://www.google.com"})
 		if err == nil {
 			t.Fatal("runScouts() expected error")
 		}
 
-		wantErr := fmt.Sprintf("\x1b[31m[ERROR]\x1b[0m invalid URL %q: missing protocol\n", "google.com")
+		wantErr := strings.Join([]string{
+			fmt.Sprintf("\x1b[31m[ERROR]\x1b[0m invalid URL %q: missing protocol", "google.com"),
+			fmt.Sprintf("\x1b[31m[ERROR]\x1b[0m invalid URL %q: missing host", "https://"),
+		}, "\n") + "\n"
 		if errBuf.String() != wantErr {
 			t.Fatalf("runScouts() error output = %q, want = %q", errBuf.String(), wantErr)
 		}
@@ -82,7 +85,7 @@ func Test_runScouts(t *testing.T) {
 	t.Run("shows help when no args", func(t *testing.T) {
 		var out bytes.Buffer
 		errBuf := bytes.Buffer{}
-		cmd := &cobra.Command{Use: "scout [urls...]", Short: "test command"}
+		cmd := &cobra.Command{Use: "scout [urls]", Short: "test command"}
 		cmd.SetOut(&out)
 		cmd.SetErr(&errBuf)
 

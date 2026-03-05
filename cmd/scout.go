@@ -11,12 +11,15 @@ func runScouts(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	}
 
-	for _, raw := range args {
-		if err := validateConnectionURL(raw); err != nil {
-			err = fmt.Errorf("invalid URL %q: %w", raw, err)
+	invalidURLs := validateConnectionURLs(args)
+	if len(invalidURLs) > 0 {
+		for _, err := range invalidURLs {
 			printValidationError(cmd, err)
-			return err
 		}
+		return fmt.Errorf("one or more URLs are invalid")
+	}
+
+	for _, raw := range args {
 		fmt.Fprintln(cmd.OutOrStdout(), raw)
 	}
 	return nil
