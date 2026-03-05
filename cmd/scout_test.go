@@ -39,8 +39,13 @@ func Test_runScouts(t *testing.T) {
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
 		origDial := detectDial
+		origDNSLookup := detectDNSLookup
 		defer func() { detectDial = origDial }()
+		defer func() { detectDNSLookup = origDNSLookup }()
 		detectDial = func(string, string, time.Duration) error { return nil }
+		detectDNSLookup = func(host, resolver string, _ time.Duration) ([]string, error) {
+			return []string{"1.2.3.4"}, nil
+		}
 
 		err := runScouts(cmd, []string{
 			"http://bdremux.club/announce",
@@ -55,12 +60,21 @@ func Test_runScouts(t *testing.T) {
 		want := strings.TrimSpace(`
 [http://bdremux.club/announce]
 ✅ 端口检测 - bdremux.club的80端口开放
+✅ DNS解析 - bdremux.club在当前DNS解析到1.2.3.4
+✅ DNS解析 - bdremux.club在8.8.8.8解析到1.2.3.4
+✅ DNS解析 - bdremux.club在223.5.5.5解析到1.2.3.4
 
 [udp://tracker.opentrackr.org:1337/announce]
 ✅ 端口检测 - tracker.opentrackr.org的1337端口开放
+✅ DNS解析 - tracker.opentrackr.org在当前DNS解析到1.2.3.4
+✅ DNS解析 - tracker.opentrackr.org在8.8.8.8解析到1.2.3.4
+✅ DNS解析 - tracker.opentrackr.org在223.5.5.5解析到1.2.3.4
 
 [https://www.google.com/]
-✅ 端口检测 - www.google.com的443端口开放`)
+✅ 端口检测 - www.google.com的443端口开放
+✅ DNS解析 - www.google.com在当前DNS解析到1.2.3.4
+✅ DNS解析 - www.google.com在8.8.8.8解析到1.2.3.4
+✅ DNS解析 - www.google.com在223.5.5.5解析到1.2.3.4`)
 		if got != want {
 			t.Fatalf("runScouts output=%q want=%q", got, want)
 		}
@@ -71,9 +85,14 @@ func Test_runScouts(t *testing.T) {
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
 		origDial := detectDial
+		origDNSLookup := detectDNSLookup
 		defer func() { detectDial = origDial }()
+		defer func() { detectDNSLookup = origDNSLookup }()
 		detectDial = func(string, string, time.Duration) error {
 			return fmt.Errorf("simulated connect failed")
+		}
+		detectDNSLookup = func(host, resolver string, _ time.Duration) ([]string, error) {
+			return []string{"1.2.3.4"}, nil
 		}
 
 		err := runScouts(cmd, []string{
@@ -88,9 +107,15 @@ func Test_runScouts(t *testing.T) {
 		want := strings.TrimSpace(`
 [http://bdremux.club/announce]
 ❌ 端口检测 - bdremux.club的80端口未开放（simulated connect failed）
+✅ DNS解析 - bdremux.club在当前DNS解析到1.2.3.4
+✅ DNS解析 - bdremux.club在8.8.8.8解析到1.2.3.4
+✅ DNS解析 - bdremux.club在223.5.5.5解析到1.2.3.4
 
 [udp://tracker.opentrackr.org:1337/announce]
-❌ 端口检测 - tracker.opentrackr.org的1337端口未开放（simulated connect failed）`)
+❌ 端口检测 - tracker.opentrackr.org的1337端口未开放（simulated connect failed）
+✅ DNS解析 - tracker.opentrackr.org在当前DNS解析到1.2.3.4
+✅ DNS解析 - tracker.opentrackr.org在8.8.8.8解析到1.2.3.4
+✅ DNS解析 - tracker.opentrackr.org在223.5.5.5解析到1.2.3.4`)
 		if got != want {
 			t.Fatalf("runScouts output=%q want=%q", got, want)
 		}

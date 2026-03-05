@@ -20,9 +20,17 @@ func runScouts(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("one or more URLs are invalid")
 	}
 
-	for _, report := range executePortChecks(args) {
+	portReports := executePortChecks(args)
+	dnsReports := executeDNSChecks(args)
+
+	for i, report := range portReports {
+		checks := report.checks
+		if i < len(dnsReports) && dnsReports[i].url == report.url {
+			checks = append(checks, dnsReports[i].checks...)
+		}
+
 		fmt.Fprintf(cmd.OutOrStdout(), "\n[%s]\n", report.url)
-		for _, check := range report.checks {
+		for _, check := range checks {
 			mark := "✅"
 			if !check.ok {
 				mark = "❌"
