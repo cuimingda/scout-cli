@@ -16,6 +16,7 @@ func runScouts(cmd *cobra.Command, args []string) error {
 		for _, err := range invalidURLs {
 			printValidationError(cmd, err)
 		}
+		printValidationSummary(cmd, len(args), len(invalidURLs))
 		return fmt.Errorf("one or more URLs are invalid")
 	}
 
@@ -28,4 +29,8 @@ func runScouts(cmd *cobra.Command, args []string) error {
 func printValidationError(cmd *cobra.Command, err error) {
 	const redErrorPrefix = "\x1b[31m[ERROR]\x1b[0m"
 	fmt.Fprintf(cmd.ErrOrStderr(), "%s %s\n", redErrorPrefix, err)
+}
+
+func printValidationSummary(cmd *cobra.Command, total, invalid int) {
+	fmt.Fprintf(cmd.ErrOrStderr(), "Summary: total=%d, invalid=%d\n", total, invalid)
 }
