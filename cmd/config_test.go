@@ -10,10 +10,13 @@ import (
 
 func Test_loadScoutConfig(t *testing.T) {
 	origConfigHome := xdg.ConfigHome
+	origHome := xdg.Home
 	defer func() {
 		xdg.ConfigHome = origConfigHome
+		xdg.Home = origHome
 	}()
 	xdg.ConfigHome = filepath.Join(os.TempDir(), "scout-cli-test-config-home-default")
+	xdg.Home = filepath.Join(os.TempDir(), "scout-cli-test-home-default")
 
 	cfg, err := loadScoutConfig()
 	if err != nil {
@@ -29,13 +32,16 @@ func Test_loadScoutConfig(t *testing.T) {
 
 func Test_loadScoutConfig_withUserConfigOverridesDNS(t *testing.T) {
 	origConfigHome := xdg.ConfigHome
+	origHome := xdg.Home
 	tmpDir := t.TempDir()
 	xdg.ConfigHome = tmpDir
 	defer func() {
 		xdg.ConfigHome = origConfigHome
+		xdg.Home = origHome
 	}()
+	xdg.Home = tmpDir
 
-	userConfigPath := filepath.Join(xdg.ConfigHome, "scout", "config.yaml")
+	userConfigPath := filepath.Join(xdg.Home, ".config", "scout", "config.yaml")
 	if err := os.MkdirAll(filepath.Dir(userConfigPath), 0o755); err != nil {
 		t.Fatalf("os.MkdirAll() error = %v", err)
 	}
@@ -54,13 +60,16 @@ func Test_loadScoutConfig_withUserConfigOverridesDNS(t *testing.T) {
 
 func Test_loadScoutConfig_withUserConfigWithoutDNSKeepsDefault(t *testing.T) {
 	origConfigHome := xdg.ConfigHome
+	origHome := xdg.Home
 	tmpDir := t.TempDir()
 	xdg.ConfigHome = tmpDir
 	defer func() {
 		xdg.ConfigHome = origConfigHome
+		xdg.Home = origHome
 	}()
+	xdg.Home = tmpDir
 
-	userConfigPath := filepath.Join(xdg.ConfigHome, "scout", "config.yaml")
+	userConfigPath := filepath.Join(xdg.Home, ".config", "scout", "config.yaml")
 	if err := os.MkdirAll(filepath.Dir(userConfigPath), 0o755); err != nil {
 		t.Fatalf("os.MkdirAll() error = %v", err)
 	}

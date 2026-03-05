@@ -32,7 +32,7 @@ func loadScoutConfig() (scoutConfig, error) {
 		return scoutConfig{}, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	userCfgPath := filepath.Join(xdg.ConfigHome, "scout", "config.yaml")
+	userCfgPath := filepath.Join(xdg.Home, ".config", "scout", "config.yaml")
 	if _, err := os.Stat(userCfgPath); err == nil {
 		userV := viper.New()
 		userV.SetConfigFile(userCfgPath)
