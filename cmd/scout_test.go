@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -59,15 +60,20 @@ func Test_runScouts(t *testing.T) {
 	})
 
 	t.Run("returns error on invalid", func(t *testing.T) {
-		var out bytes.Buffer
+		var out, errBuf bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
+		cmd.SetErr(&errBuf)
 
 		err := runScouts(cmd, []string{"google.com", "https://www.google.com"})
 		if err == nil {
 			t.Fatal("runScouts() expected error")
 		}
 
+		wantErr := fmt.Sprintf("\x1b[31m[ERROR]\x1b[0m invalid URL %q: missing protocol\n", "google.com")
+		if errBuf.String() != wantErr {
+			t.Fatalf("runScouts() error output = %q, want = %q", errBuf.String(), wantErr)
+		}
 		if strings.TrimSpace(out.String()) != "" {
 			t.Fatalf("expected no output, got: %q", out.String())
 		}

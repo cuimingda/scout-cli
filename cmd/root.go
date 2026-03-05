@@ -16,7 +16,9 @@ var rootCmd = &cobra.Command{
 	Long:    "Scout validates one or more complete protocol URLs and prints each valid input.",
 	Example: `scout https://www.google.com/sitemap.xml
 scout udp://tracker.opentrackr.org:1337/announce`,
-	RunE:    runScouts,
+	RunE:        runScouts,
+	SilenceUsage: true,
+	SilenceErrors: true,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
