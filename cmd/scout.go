@@ -8,6 +8,15 @@ import (
 )
 
 func runScouts(cmd *cobra.Command, args []string) error {
+	cfg, err := loadScoutConfig()
+	if err != nil {
+		printValidationError(cmd, err)
+		return err
+	}
+	return runScoutsWithConfig(cmd, args, cfg)
+}
+
+func runScoutsWithConfig(cmd *cobra.Command, args []string, cfg scoutConfig) error {
 	if len(args) == 0 {
 		return cmd.Help()
 	}
@@ -29,7 +38,7 @@ func runScouts(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(cmd.OutOrStdout(), "[SYSTEM]\n🔍 当前DNS：%s\n", systemDNSDisplay)
 
 	portReports := executePortChecks(args)
-	dnsReports := executeDNSChecks(args)
+	dnsReports := executeDNSChecks(args, cfg.DNS)
 
 	for i, report := range portReports {
 		checks := report.checks

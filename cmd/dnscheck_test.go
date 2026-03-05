@@ -8,12 +8,16 @@ import (
 )
 
 func Test_buildDNSCheckPlans(t *testing.T) {
+	extraDNS := []string{
+		"223.5.5.5",
+		"8.8.8.8",
+	}
 	urls := []string{
 		"http://bdremux.club/announce",
 		"http://192.168.1.1/announce",
 		"https://www.google.com/",
 	}
-	plans, errs := buildDNSCheckPlans(urls)
+	plans, errs := buildDNSCheckPlans(urls, extraDNS)
 	if len(errs) != 0 {
 		t.Fatalf("unexpected errors: %v", errs)
 	}
@@ -22,9 +26,10 @@ func Test_buildDNSCheckPlans(t *testing.T) {
 	}
 
 	hosts := []string{"bdremux.club", "www.google.com"}
+	resolvers := append([]dnsResolver{{label: "当前DNS", addr: ""}}, dnsResolver{label: "223.5.5.5", addr: "223.5.5.5"}, dnsResolver{label: "8.8.8.8", addr: "8.8.8.8"})
 	for i, expected := range hosts {
 		base := i * 3
-		for j, want := range dnsResolvers {
+		for j, want := range resolvers {
 			plan := plans[base+j]
 			if plan.host != expected {
 				t.Fatalf("plan[%d].host got %q, want %q", base+j, plan.host, expected)
@@ -50,14 +55,14 @@ func Test_executeDNSChecks(t *testing.T) {
 		return []string{"1.1.1.1", "2.2.2.2"}, nil
 	}
 
-	reports := executeDNSChecks(urls)
+	reports := executeDNSChecks(urls, []string{"223.5.5.5", "8.8.8.8"})
 	if len(reports) != len(urls) {
 		t.Fatalf("got %d reports, want %d", len(reports), len(urls))
 	}
 
 	for i, report := range reports {
-		if len(report.checks) != len(dnsResolvers) {
-			t.Fatalf("report[%d] checks = %d, want %d", i, len(report.checks), len(dnsResolvers))
+		if len(report.checks) != 3 {
+			t.Fatalf("report[%d] checks = %d, want 3", i, len(report.checks))
 		}
 		for _, check := range report.checks {
 			if !check.ok {
@@ -71,7 +76,7 @@ func Test_executeDNSChecks(t *testing.T) {
 }
 
 func Test_executeDNSChecks_skips_ip_host(t *testing.T) {
-	reports := executeDNSChecks([]string{"http://127.0.0.1/announce"})
+	reports := executeDNSChecks([]string{"http://127.0.0.1/announce"}, []string{"223.5.5.5", "8.8.8.8"})
 	if len(reports) != 1 {
 		t.Fatalf("got %d reports, want 1", len(reports))
 	}
@@ -88,10 +93,10 @@ func Test_executeDNSChecks_collects_all_errors(t *testing.T) {
 		return nil, fmt.Errorf("simulated dns failure")
 	}
 
-	reports := executeDNSChecks(urls)
+	reports := executeDNSChecks(urls, []string{"223.5.5.5", "8.8.8.8"})
 	for _, report := range reports {
-		if len(report.checks) != len(dnsResolvers) {
-			t.Fatalf("url=%s expected %d checks, got %d", report.url, len(dnsResolvers), len(report.checks))
+		if len(report.checks) != 3 {
+			t.Fatalf("url=%s expected 3 checks, got %d", report.url, len(report.checks))
 		}
 		for _, check := range report.checks {
 			if check.ok {

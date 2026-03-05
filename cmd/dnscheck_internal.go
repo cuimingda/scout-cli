@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -21,16 +21,6 @@ type dnsCheckPlan struct {
 type dnsResolver struct {
 	label string
 	addr  string
-}
-
-var dnsResolvers = []dnsResolver{
-	{label: "当前DNS", addr: ""},
-	{label: "8.8.8.8", addr: "8.8.8.8"},
-	{label: "223.5.5.5", addr: "223.5.5.5"},
-}
-
-var detectSystemDNS = func() ([]string, error) {
-	return currentSystemDNSes()
 }
 
 var detectDNSLookup = func(host, resolver string, _ time.Duration) ([]string, error) {
@@ -50,9 +40,19 @@ var detectDNSLookup = func(host, resolver string, _ time.Duration) ([]string, er
 	return resolverClient.LookupHost(ctx, host)
 }
 
-func buildDNSCheckPlans(rawURLs []string) ([]dnsCheckPlan, []error) {
+var detectSystemDNS = func() ([]string, error) {
+	return currentSystemDNSes()
+}
+
+func buildDNSCheckPlans(rawURLs []string, extraDNS []string) ([]dnsCheckPlan, []error) {
 	var plans []dnsCheckPlan
 	var errs []error
+
+	resolvers := make([]dnsResolver, 0, len(extraDNS)+1)
+	resolvers = append(resolvers, dnsResolver{label: "当前DNS", addr: ""})
+	for _, dnsAddr := range extraDNS {
+		resolvers = append(resolvers, dnsResolver{label: dnsAddr, addr: dnsAddr})
+	}
 
 	for _, raw := range rawURLs {
 		u, err := url.Parse(raw)
@@ -74,7 +74,7 @@ func buildDNSCheckPlans(rawURLs []string) ([]dnsCheckPlan, []error) {
 			continue
 		}
 
-		for _, resolver := range dnsResolvers {
+		for _, resolver := range resolvers {
 			plans = append(plans, dnsCheckPlan{
 				url:           raw,
 				host:          host,
@@ -84,6 +84,45 @@ func buildDNSCheckPlans(rawURLs []string) ([]dnsCheckPlan, []error) {
 		}
 	}
 	return plans, errs
+}
+
+func executeDNSChecksWithResolvers(rawURLs []string, extraDNS []string) []urlCheckReport {
+	reports := make([]urlCheckReport, 0, len(rawURLs))
+
+	for _, raw := range rawURLs {
+		report := urlCheckReport{url: raw}
+		plans, errs := buildDNSCheckPlans([]string{raw}, extraDNS)
+		if len(errs) > 0 {
+			for _, err := range errs {
+				report.checks = append(report.checks, checkPlanResult{
+					name:   "DNS解析",
+					ok:     false,
+					detail: err.Error(),
+				})
+			}
+			reports = append(reports, report)
+			continue
+		}
+
+		for _, plan := range plans {
+			ips, err := executeDNSCheck(plan)
+			if err != nil {
+				report.checks = append(report.checks, checkPlanResult{
+					name:   "DNS解析",
+					ok:     false,
+					detail: err.Error(),
+				})
+				continue
+			}
+			report.checks = append(report.checks, checkPlanResult{
+				name:   "DNS解析",
+				ok:     true,
+				detail: fmt.Sprintf("%s在%s解析到%s", plan.host, plan.resolverLabel, strings.Join(ips, ",")),
+			})
+		}
+		reports = append(reports, report)
+	}
+	return reports
 }
 
 func executeDNSCheck(plan dnsCheckPlan) ([]string, error) {
