@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -19,6 +20,13 @@ func runScouts(cmd *cobra.Command, args []string) error {
 		printValidationSummary(cmd, len(args), len(invalidURLs))
 		return fmt.Errorf("one or more URLs are invalid")
 	}
+
+	systemDNS, _ := detectSystemDNS()
+	systemDNSDisplay := "unknown"
+	if len(systemDNS) > 0 {
+		systemDNSDisplay = strings.Join(systemDNS, ", ")
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "[SYSTEM]\n🔍 当前DNS：%s\n", systemDNSDisplay)
 
 	portReports := executePortChecks(args)
 	dnsReports := executeDNSChecks(args)

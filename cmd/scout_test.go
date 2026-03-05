@@ -40,9 +40,14 @@ func Test_runScouts(t *testing.T) {
 		cmd.SetOut(&out)
 		origDial := detectDial
 		origDNSLookup := detectDNSLookup
+		origSystemDNS := detectSystemDNS
 		defer func() { detectDial = origDial }()
 		defer func() { detectDNSLookup = origDNSLookup }()
+		defer func() { detectSystemDNS = origSystemDNS }()
 		detectDial = func(string, string, time.Duration) error { return nil }
+		detectSystemDNS = func() ([]string, error) {
+			return []string{"8.8.8.8", "223.5.5.5"}, nil
+		}
 		detectDNSLookup = func(host, resolver string, _ time.Duration) ([]string, error) {
 			return []string{"1.2.3.4"}, nil
 		}
@@ -58,6 +63,9 @@ func Test_runScouts(t *testing.T) {
 
 		got := strings.TrimSpace(out.String())
 		want := strings.TrimSpace(`
+[SYSTEM]
+🔍 当前DNS：8.8.8.8, 223.5.5.5
+
 [http://bdremux.club/announce]
 ✅ 端口检测 - bdremux.club的80端口开放
 ✅ DNS解析 - bdremux.club在当前DNS解析到1.2.3.4
@@ -86,10 +94,15 @@ func Test_runScouts(t *testing.T) {
 		cmd.SetOut(&out)
 		origDial := detectDial
 		origDNSLookup := detectDNSLookup
+		origSystemDNS := detectSystemDNS
 		defer func() { detectDial = origDial }()
 		defer func() { detectDNSLookup = origDNSLookup }()
+		defer func() { detectSystemDNS = origSystemDNS }()
 		detectDial = func(string, string, time.Duration) error {
 			return fmt.Errorf("simulated connect failed")
+		}
+		detectSystemDNS = func() ([]string, error) {
+			return []string{"8.8.8.8", "223.5.5.5"}, nil
 		}
 		detectDNSLookup = func(host, resolver string, _ time.Duration) ([]string, error) {
 			return []string{"1.2.3.4"}, nil
@@ -105,6 +118,9 @@ func Test_runScouts(t *testing.T) {
 
 		got := strings.TrimSpace(out.String())
 		want := strings.TrimSpace(`
+[SYSTEM]
+🔍 当前DNS：8.8.8.8, 223.5.5.5
+
 [http://bdremux.club/announce]
 ❌ 端口检测 - bdremux.club的80端口未开放（simulated connect failed）
 ✅ DNS解析 - bdremux.club在当前DNS解析到1.2.3.4
