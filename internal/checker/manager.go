@@ -14,15 +14,15 @@ func NewManager(formatChecker *FormatChecker, defaultCheckers []Checker, protoco
 	}
 }
 
-func (m Manager) Run(raw string) (Target, []Result) {
-	target, results := m.formatChecker.Check(Target{Raw: raw})
+func (m Manager) Run(raw string) (URL, []Result) {
+	target, results := m.formatChecker.Check(URL{Raw: raw})
 	if len(results) == 0 || !results[0].OK {
 		return target, results
 	}
 
 	for _, checker := range m.CheckersFor(target) {
 		nextTarget, checkerResults := checker.Check(target)
-		if nextTarget.URL != nil {
+		if nextTarget.Parsed != nil {
 			target = nextTarget
 		}
 		results = append(results, checkerResults...)
@@ -30,7 +30,7 @@ func (m Manager) Run(raw string) (Target, []Result) {
 	return target, results
 }
 
-func (m Manager) CheckersFor(target Target) []Checker {
+func (m Manager) CheckersFor(target URL) []Checker {
 	if checkers, ok := m.protocolCheckers[target.Protocol()]; ok {
 		return cloneCheckers(checkers)
 	}

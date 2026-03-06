@@ -45,7 +45,7 @@ func (c *PortChecker) Definition() BaseChecker {
 	return c.BaseChecker
 }
 
-func (c *PortChecker) Check(target Target) (Target, []Result) {
+func (c *PortChecker) Check(target URL) (URL, []Result) {
 	plan, ok, err := c.buildPlan(target)
 	if err != nil {
 		return target, []Result{
@@ -65,6 +65,8 @@ func (c *PortChecker) Check(target Target) (Target, []Result) {
 		}
 	}
 
+	target.PortNetwork = plan.network
+	target.PortNumber = plan.port
 	return target, []Result{
 		successResult(c.Name, fmt.Sprintf("%s的%d端口开放", plan.host, plan.port)),
 	}

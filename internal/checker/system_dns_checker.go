@@ -23,13 +23,14 @@ func (c *SystemDNSChecker) Definition() BaseChecker {
 	return c.BaseChecker
 }
 
-func (c *SystemDNSChecker) Check(target SystemTarget) (SystemTarget, []Result) {
+func (c *SystemDNSChecker) Check(target System) (System, []Result) {
 	dnses, err := c.systemDNS()
 	if err != nil {
 		return target, []Result{
 			failureResult(c.Name, err.Error()),
 		}
 	}
+	target.DNS = append([]string(nil), dnses...)
 	return target, []Result{
 		successResult(c.Name, strings.Join(dnses, ", ")),
 	}

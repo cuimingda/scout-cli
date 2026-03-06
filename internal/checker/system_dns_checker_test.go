@@ -13,12 +13,15 @@ func TestSystemDNSChecker(t *testing.T) {
 			},
 		})
 
-		_, results := checker.Check(SystemTarget{})
+		systemInfo, results := checker.Check(System{})
 		if len(results) != 1 {
 			t.Fatalf("got %d results, want 1", len(results))
 		}
 		if !results[0].OK {
 			t.Fatalf("expected success, got %+v", results[0])
+		}
+		if len(systemInfo.DNS) != 2 || systemInfo.DNS[0] != "8.8.8.8" || systemInfo.DNS[1] != "223.5.5.5" {
+			t.Fatalf("unexpected system info: %+v", systemInfo)
 		}
 		if results[0].Name != "当前DNS" || results[0].Detail != "8.8.8.8, 223.5.5.5" {
 			t.Fatalf("unexpected result: %+v", results[0])
@@ -32,7 +35,7 @@ func TestSystemDNSChecker(t *testing.T) {
 			},
 		})
 
-		_, results := checker.Check(SystemTarget{})
+		_, results := checker.Check(System{})
 		if len(results) != 1 {
 			t.Fatalf("got %d results, want 1", len(results))
 		}

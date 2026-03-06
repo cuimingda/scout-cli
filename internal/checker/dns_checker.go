@@ -35,8 +35,8 @@ func (c *DNSChecker) Definition() BaseChecker {
 	return c.BaseChecker
 }
 
-func (c *DNSChecker) Check(target Target) (Target, []Result) {
-	if target.URL == nil {
+func (c *DNSChecker) Check(target URL) (URL, []Result) {
+	if target.Parsed == nil {
 		return target, []Result{
 			failureResult(c.Name, "missing parsed URL"),
 		}
@@ -54,6 +54,10 @@ func (c *DNSChecker) Check(target Target) (Target, []Result) {
 			results = append(results, failureResult(c.Name, fmt.Sprintf("%s在%s解析失败（no address resolved）", plan.host, plan.resolverLabel)))
 			continue
 		}
+		if target.ResolvedAddresses == nil {
+			target.ResolvedAddresses = make(map[string][]string)
+		}
+		target.ResolvedAddresses[plan.resolverLabel] = append([]string(nil), addrs...)
 		results = append(results, successResult(c.Name, fmt.Sprintf("%s在%s解析到%s", plan.host, plan.resolverLabel, strings.Join(addrs, ","))))
 	}
 	return target, results

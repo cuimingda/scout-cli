@@ -18,12 +18,15 @@ func TestPortChecker(t *testing.T) {
 			},
 		})
 
-		_, results := checker.Check(mustParseTarget(t, "udp://tracker.opentrackr.org:1337/announce"))
+		urlInfo, results := checker.Check(mustParseURL(t, "udp://tracker.opentrackr.org:1337/announce"))
 		if len(results) != 1 {
 			t.Fatalf("got %d results, want 1", len(results))
 		}
 		if !results[0].OK {
 			t.Fatalf("expected success, got %+v", results[0])
+		}
+		if urlInfo.PortNetwork != "udp" || urlInfo.PortNumber != 1337 {
+			t.Fatalf("unexpected url info: %+v", urlInfo)
 		}
 		if len(dials) != 1 || dials[0] != "udp://tracker.opentrackr.org:1337" {
 			t.Fatalf("unexpected dials: %v", dials)
@@ -38,7 +41,7 @@ func TestPortChecker(t *testing.T) {
 			},
 		})
 
-		_, results := checker.Check(mustParseTarget(t, "https://www.google.com/"))
+		_, results := checker.Check(mustParseURL(t, "https://www.google.com/"))
 		if len(results) != 1 {
 			t.Fatalf("got %d results, want 1", len(results))
 		}

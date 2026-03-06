@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-func (c *PortChecker) buildPlan(target Target) (portCheckPlan, bool, error) {
-	if target.URL == nil {
+func (c *PortChecker) buildPlan(target URL) (portCheckPlan, bool, error) {
+	if target.Parsed == nil {
 		return portCheckPlan{}, false, fmt.Errorf("missing parsed URL")
 	}
 
-	u := target.URL
+	u := target.Parsed
 	if !c.urlHasPortCheck(u) {
 		return portCheckPlan{}, false, nil
 	}

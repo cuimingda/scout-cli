@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-func (c *DNSChecker) buildPlans(target Target) []dnsCheckPlan {
-	host := target.URL.Hostname()
+func (c *DNSChecker) buildPlans(target URL) []dnsCheckPlan {
+	host := target.Parsed.Hostname()
 	if host == "" {
 		return nil
 	}

@@ -7,19 +7,6 @@ import (
 	"time"
 )
 
-func mustParseTarget(t *testing.T, raw string) Target {
-	t.Helper()
-
-	parsedURL, err := parseConnectionURL(raw)
-	if err != nil {
-		t.Fatalf("parseConnectionURL(%q) error = %v", raw, err)
-	}
-	return Target{
-		Raw: raw,
-		URL: parsedURL,
-	}
-}
-
 func TestDNSChecker(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		checker := NewDNSChecker(DNSCheckerOptions{
@@ -30,9 +17,12 @@ func TestDNSChecker(t *testing.T) {
 			},
 		})
 
-		_, results := checker.Check(mustParseTarget(t, "http://bdremux.club/announce"))
+		urlInfo, results := checker.Check(mustParseURL(t, "http://bdremux.club/announce"))
 		if len(results) != 3 {
 			t.Fatalf("got %d results, want 3", len(results))
+		}
+		if len(urlInfo.ResolvedAddresses) != 3 {
+			t.Fatalf("urlInfo.ResolvedAddresses = %v, want 3 resolvers", urlInfo.ResolvedAddresses)
 		}
 		for _, result := range results {
 			if !result.OK {
@@ -50,7 +40,7 @@ func TestDNSChecker(t *testing.T) {
 			Timeout:        time.Second,
 		})
 
-		_, results := checker.Check(mustParseTarget(t, "http://127.0.0.1/announce"))
+		_, results := checker.Check(mustParseURL(t, "http://127.0.0.1/announce"))
 		if len(results) != 0 {
 			t.Fatalf("expected no results, got %d", len(results))
 		}
@@ -65,7 +55,7 @@ func TestDNSChecker(t *testing.T) {
 			},
 		})
 
-		_, results := checker.Check(mustParseTarget(t, "http://bdremux.club/announce"))
+		_, results := checker.Check(mustParseURL(t, "http://bdremux.club/announce"))
 		if len(results) != 3 {
 			t.Fatalf("got %d results, want 3", len(results))
 		}

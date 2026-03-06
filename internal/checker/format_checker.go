@@ -16,7 +16,7 @@ func (c *FormatChecker) Definition() BaseChecker {
 	return c.BaseChecker
 }
 
-func (c *FormatChecker) Check(target Target) (Target, []Result) {
+func (c *FormatChecker) Check(target URL) (URL, []Result) {
 	parsedURL, err := parseConnectionURL(target.Raw)
 	if err != nil {
 		return target, []Result{
@@ -24,7 +24,7 @@ func (c *FormatChecker) Check(target Target) (Target, []Result) {
 		}
 	}
 
-	target.URL = parsedURL
+	target.Parsed = parsedURL
 	return target, []Result{
 		successResult(c.Name, "输入格式合法"),
 	}

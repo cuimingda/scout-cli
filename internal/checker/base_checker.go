@@ -6,5 +6,5 @@ type BaseChecker struct {
 
 type Checker interface {
 	Definition() BaseChecker
-	Check(Target) (Target, []Result)
+	Check(URL) (URL, []Result)
 }
