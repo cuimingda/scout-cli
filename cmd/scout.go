@@ -10,24 +10,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var buildScoutManager = func(cfg scoutConfig) checker.Manager {
+var buildScoutManager = func(cfg scoutConfig, dnsEnabled, portEnabled bool) checker.Manager {
 	formatChecker := checker.NewFormatChecker()
-	portChecker := checker.NewPortChecker(checker.PortCheckerOptions{
-		Timeout: 3 * time.Second,
-	})
-	dnsChecker := checker.NewDNSChecker(checker.DNSCheckerOptions{
-		ExtraResolvers: cfg.DNS,
-		Timeout:        3 * time.Second,
-	})
+	var portChecker *checker.PortChecker
+	var dnsChecker *checker.DNSChecker
+	if portEnabled {
+		portChecker = checker.NewPortChecker(checker.PortCheckerOptions{
+			Timeout: 3 * time.Second,
+		})
+	}
+	if dnsEnabled {
+		dnsChecker = checker.NewDNSChecker(checker.DNSCheckerOptions{
+			ExtraResolvers: cfg.DNS,
+			Timeout:        3 * time.Second,
+		})
+	}
 
 	return checker.NewManager(
 		formatChecker,
 		dnsChecker,
-		[]checker.Checker{dnsChecker},
+		defaultProtocolCheckers(dnsChecker),
 		map[string][]checker.Checker{
-			"http":  []checker.Checker{portChecker, dnsChecker},
-			"https": []checker.Checker{portChecker, dnsChecker},
-			"udp":   []checker.Checker{portChecker, dnsChecker},
+			"http":  protocolCheckersFor(portChecker, dnsChecker),
+			"https": protocolCheckersFor(portChecker, dnsChecker),
+			"udp":   protocolCheckersFor(portChecker, dnsChecker),
 		},
 	)
 }
@@ -57,7 +63,8 @@ func runScoutsWithConfig(cmd *cobra.Command, args []string, cfg scoutConfig) err
 	}
 
 	raw := args[0]
-	manager := buildScoutManager(cfg)
+	dnsEnabled, portEnabled := enabledOptionalChecks()
+	manager := buildScoutManager(cfg, dnsEnabled, portEnabled)
 	_, results := manager.Run(raw)
 	if len(results) == 0 {
 		return fmt.Errorf("no checks executed")
@@ -70,18 +77,48 @@ func runScoutsWithConfig(cmd *cobra.Command, args []string, cfg scoutConfig) err
 		return fmt.Errorf("format check failed")
 	}
 
-	systemDNS, _ := manager.SystemDNSes()
-	systemDNSDisplay := "unknown"
-	if len(systemDNS) > 0 {
-		systemDNSDisplay = strings.Join(systemDNS, ", ")
+	if dnsEnabled {
+		systemDNS, _ := manager.SystemDNSes()
+		systemDNSDisplay := "unknown"
+		if len(systemDNS) > 0 {
+			systemDNSDisplay = strings.Join(systemDNS, ", ")
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "[SYSTEM]\n🔍 当前DNS：%s\n", systemDNSDisplay)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "[SYSTEM]\n🔍 当前DNS：%s\n", systemDNSDisplay)
 
-	fmt.Fprintf(cmd.OutOrStdout(), "\n[%s]\n", raw)
+	if dnsEnabled {
+		fmt.Fprint(cmd.OutOrStdout(), "\n")
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "[%s]\n", raw)
 	for _, result := range results {
 		writeCheckLine(cmd.OutOrStdout(), result)
 	}
 	return nil
+}
+
+func enabledOptionalChecks() (bool, bool) {
+	if scoutAllChecksEnabled {
+		return true, true
+	}
+	return scoutDNSCheckEnabled, scoutPortCheckEnabled
+}
+
+func defaultProtocolCheckers(dnsChecker *checker.DNSChecker) []checker.Checker {
+	if dnsChecker == nil {
+		return nil
+	}
+	return []checker.Checker{dnsChecker}
+}
+
+func protocolCheckersFor(portChecker *checker.PortChecker, dnsChecker *checker.DNSChecker) []checker.Checker {
+	checkers := make([]checker.Checker, 0, 2)
+	if portChecker != nil {
+		checkers = append(checkers, portChecker)
+	}
+	if dnsChecker != nil {
+		checkers = append(checkers, dnsChecker)
+	}
+	return checkers
 }
 
 func writeCheckLine(out io.Writer, check checker.Result) {

@@ -9,6 +9,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var scoutDNSCheckEnabled bool
+var scoutPortCheckEnabled bool
+var scoutAllChecksEnabled bool
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:     "scout <url>",
@@ -19,6 +23,12 @@ scout udp://tracker.opentrackr.org:1337/announce`,
 	RunE:        runScouts,
 	SilenceUsage: true,
 	SilenceErrors: true,
+}
+
+func init() {
+	rootCmd.Flags().BoolVar(&scoutDNSCheckEnabled, "dns", false, "Enable DNS checks")
+	rootCmd.Flags().BoolVar(&scoutPortCheckEnabled, "port", false, "Enable port checks")
+	rootCmd.Flags().BoolVar(&scoutAllChecksEnabled, "all", false, "Enable all optional checks")
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
