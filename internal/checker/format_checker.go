@@ -1,9 +1,6 @@
 package checker
 
-import (
-	"fmt"
-	"net/url"
-)
+import "fmt"
 
 type FormatChecker struct {
 	BaseChecker
@@ -31,18 +28,4 @@ func (c *FormatChecker) Check(target Target) (Target, []Result) {
 	return target, []Result{
 		successResult(c.Name, "输入格式合法"),
 	}
-}
-
-func parseConnectionURL(raw string) (*url.URL, error) {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return nil, err
-	}
-	if u.Scheme == "" {
-		return nil, fmt.Errorf("missing protocol")
-	}
-	if u.Host == "" {
-		return nil, fmt.Errorf("missing host")
-	}
-	return u, nil
 }

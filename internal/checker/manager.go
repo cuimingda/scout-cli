@@ -10,16 +10,11 @@ type Manager struct {
 }
 
 func NewManager(formatChecker *FormatChecker, dnsChecker *DNSChecker, defaultCheckers []Checker, protocolCheckers map[string][]Checker) Manager {
-	clonedProtocolCheckers := make(map[string][]Checker, len(protocolCheckers))
-	for protocol, checkers := range protocolCheckers {
-		clonedProtocolCheckers[protocol] = append([]Checker(nil), checkers...)
-	}
-
 	return Manager{
 		formatChecker:    formatChecker,
 		dnsChecker:       dnsChecker,
-		defaultCheckers:  append([]Checker(nil), defaultCheckers...),
-		protocolCheckers: clonedProtocolCheckers,
+		defaultCheckers:  cloneCheckers(defaultCheckers),
+		protocolCheckers: cloneProtocolCheckers(protocolCheckers),
 	}
 }
 
@@ -41,9 +36,9 @@ func (m Manager) Run(raw string) (Target, []Result) {
 
 func (m Manager) CheckersFor(target Target) []Checker {
 	if checkers, ok := m.protocolCheckers[target.Protocol()]; ok {
-		return append([]Checker(nil), checkers...)
+		return cloneCheckers(checkers)
 	}
-	return append([]Checker(nil), m.defaultCheckers...)
+	return cloneCheckers(m.defaultCheckers)
 }
 
 func (m Manager) SystemDNSes() ([]string, error) {
