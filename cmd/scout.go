@@ -4,9 +4,33 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
+	"github.com/cuimingda/scout-cli/internal/checker"
 	"github.com/spf13/cobra"
 )
+
+var buildScoutManager = func(cfg scoutConfig) checker.Manager {
+	formatChecker := checker.NewFormatChecker()
+	portChecker := checker.NewPortChecker(checker.PortCheckerOptions{
+		Timeout: 3 * time.Second,
+	})
+	dnsChecker := checker.NewDNSChecker(checker.DNSCheckerOptions{
+		ExtraResolvers: cfg.DNS,
+		Timeout:        3 * time.Second,
+	})
+
+	return checker.NewManager(
+		formatChecker,
+		dnsChecker,
+		[]checker.Checker{dnsChecker},
+		map[string][]checker.Checker{
+			"http":  []checker.Checker{portChecker, dnsChecker},
+			"https": []checker.Checker{portChecker, dnsChecker},
+			"udp":   []checker.Checker{portChecker, dnsChecker},
+		},
+	)
+}
 
 func runScouts(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
@@ -33,14 +57,20 @@ func runScoutsWithConfig(cmd *cobra.Command, args []string, cfg scoutConfig) err
 	}
 
 	raw := args[0]
-	target, formatCheck := executeFormatCheck(raw)
-	if !formatCheck.ok {
+	manager := buildScoutManager(cfg)
+	_, results := manager.Run(raw)
+	if len(results) == 0 {
+		return fmt.Errorf("no checks executed")
+	}
+	if !results[0].OK {
 		fmt.Fprintf(cmd.OutOrStdout(), "[%s]\n", raw)
-		writeCheckLine(cmd.OutOrStdout(), formatCheck)
+		for _, result := range results {
+			writeCheckLine(cmd.OutOrStdout(), result)
+		}
 		return fmt.Errorf("format check failed")
 	}
 
-	systemDNS, _ := detectSystemDNS()
+	systemDNS, _ := manager.SystemDNSes()
 	systemDNSDisplay := "unknown"
 	if len(systemDNS) > 0 {
 		systemDNSDisplay = strings.Join(systemDNS, ", ")
@@ -48,22 +78,18 @@ func runScoutsWithConfig(cmd *cobra.Command, args []string, cfg scoutConfig) err
 	fmt.Fprintf(cmd.OutOrStdout(), "[SYSTEM]\n🔍 当前DNS：%s\n", systemDNSDisplay)
 
 	fmt.Fprintf(cmd.OutOrStdout(), "\n[%s]\n", raw)
-	writeCheckLine(cmd.OutOrStdout(), formatCheck)
-	executePortChecksStreaming(target, func(check checkPlanResult) {
-		writeCheckLine(cmd.OutOrStdout(), check)
-	})
-	executeDNSChecksStreamingWithResolvers(target, cfg.DNS, func(check checkPlanResult) {
-		writeCheckLine(cmd.OutOrStdout(), check)
-	})
+	for _, result := range results {
+		writeCheckLine(cmd.OutOrStdout(), result)
+	}
 	return nil
 }
 
-func writeCheckLine(out io.Writer, check checkPlanResult) {
+func writeCheckLine(out io.Writer, check checker.Result) {
 	mark := "✅"
-	if !check.ok {
+	if !check.OK {
 		mark = "❌"
 	}
-	fmt.Fprintf(out, "%s %s - %s\n", mark, check.name, check.detail)
+	fmt.Fprintf(out, "%s %s - %s\n", mark, check.Name, check.Detail)
 }
 
 func printValidationError(cmd *cobra.Command, err error) {

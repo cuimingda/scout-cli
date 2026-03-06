@@ -7,68 +7,42 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cuimingda/scout-cli/internal/checker"
 	"github.com/spf13/cobra"
 )
 
-func mustBuildScoutTarget(t *testing.T, raw string) scoutTarget {
-	t.Helper()
-
-	target, err := buildScoutTarget(raw)
-	if err != nil {
-		t.Fatalf("buildScoutTarget(%q) error = %v", raw, err)
-	}
-	return target
-}
-
-func Test_validateConnectionURL(t *testing.T) {
-	tests := []struct {
-		name      string
-		input     string
-		wantError bool
-	}{
-		{name: "valid_http_path", input: "https://www.google.com/sitemap.xml", wantError: false},
-		{name: "valid_udp", input: "udp://tracker.opentrackr.org:1337/announce", wantError: false},
-		{name: "valid_ftp", input: "ftp://ftp.example.com/resource", wantError: false},
-		{name: "missing_scheme", input: "google.com", wantError: true},
-		{name: "missing_host", input: "https://", wantError: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateConnectionURL(tt.input)
-			if (err != nil) != tt.wantError {
-				t.Fatalf("validateConnectionURL(%q) error = %v, wantError %v", tt.input, err, tt.wantError)
+func buildTestManager(cfg scoutConfig, dialErr error, dnsErr error) checker.Manager {
+	formatChecker := checker.NewFormatChecker()
+	portChecker := checker.NewPortChecker(checker.PortCheckerOptions{
+		Timeout: time.Second,
+		Dial: func(string, string, time.Duration) error {
+			return dialErr
+		},
+	})
+	dnsChecker := checker.NewDNSChecker(checker.DNSCheckerOptions{
+		ExtraResolvers: cfg.DNS,
+		Timeout:        time.Second,
+		SystemDNS: func() ([]string, error) {
+			return []string{"8.8.8.8", "223.5.5.5"}, nil
+		},
+		Lookup: func(host, resolver string, _ time.Duration) ([]string, error) {
+			if dnsErr != nil {
+				return nil, dnsErr
 			}
-		})
-	}
-}
-
-func Test_executeFormatCheck(t *testing.T) {
-	t.Run("valid input", func(t *testing.T) {
-		target, check := executeFormatCheck("https://www.google.com/sitemap.xml")
-		if !check.ok {
-			t.Fatalf("expected success, got %+v", check)
-		}
-		if check.name != "文件格式检查" || check.detail != "输入格式合法" {
-			t.Fatalf("unexpected check: %+v", check)
-		}
-		if target.raw != "https://www.google.com/sitemap.xml" || target.parsed == nil {
-			t.Fatalf("unexpected target: %+v", target)
-		}
+			return []string{"1.2.3.4"}, nil
+		},
 	})
 
-	t.Run("invalid input", func(t *testing.T) {
-		_, check := executeFormatCheck("google.com")
-		if check.ok {
-			t.Fatalf("expected failure, got %+v", check)
-		}
-		if check.name != "文件格式检查" {
-			t.Fatalf("unexpected check name: %+v", check)
-		}
-		if !strings.Contains(check.detail, "invalid URL \"google.com\": missing protocol") {
-			t.Fatalf("unexpected detail: %s", check.detail)
-		}
-	})
+	return checker.NewManager(
+		formatChecker,
+		dnsChecker,
+		[]checker.Checker{dnsChecker},
+		map[string][]checker.Checker{
+			"http":  []checker.Checker{portChecker, dnsChecker},
+			"https": []checker.Checker{portChecker, dnsChecker},
+			"udp":   []checker.Checker{portChecker, dnsChecker},
+		},
+	)
 }
 
 func Test_runScouts(t *testing.T) {
@@ -76,18 +50,10 @@ func Test_runScouts(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
-		origDial := detectDial
-		origDNSLookup := detectDNSLookup
-		origSystemDNS := detectSystemDNS
-		defer func() { detectDial = origDial }()
-		defer func() { detectDNSLookup = origDNSLookup }()
-		defer func() { detectSystemDNS = origSystemDNS }()
-		detectDial = func(string, string, time.Duration) error { return nil }
-		detectSystemDNS = func() ([]string, error) {
-			return []string{"8.8.8.8", "223.5.5.5"}, nil
-		}
-		detectDNSLookup = func(host, resolver string, _ time.Duration) ([]string, error) {
-			return []string{"1.2.3.4"}, nil
+		origBuild := buildScoutManager
+		defer func() { buildScoutManager = origBuild }()
+		buildScoutManager = func(cfg scoutConfig) checker.Manager {
+			return buildTestManager(cfg, nil, nil)
 		}
 
 		err := runScoutsWithConfig(cmd, []string{
@@ -117,20 +83,10 @@ func Test_runScouts(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
-		origDial := detectDial
-		origDNSLookup := detectDNSLookup
-		origSystemDNS := detectSystemDNS
-		defer func() { detectDial = origDial }()
-		defer func() { detectDNSLookup = origDNSLookup }()
-		defer func() { detectSystemDNS = origSystemDNS }()
-		detectDial = func(string, string, time.Duration) error {
-			return fmt.Errorf("simulated connect failed")
-		}
-		detectSystemDNS = func() ([]string, error) {
-			return []string{"8.8.8.8", "223.5.5.5"}, nil
-		}
-		detectDNSLookup = func(host, resolver string, _ time.Duration) ([]string, error) {
-			return []string{"1.2.3.4"}, nil
+		origBuild := buildScoutManager
+		defer func() { buildScoutManager = origBuild }()
+		buildScoutManager = func(cfg scoutConfig) checker.Manager {
+			return buildTestManager(cfg, fmt.Errorf("simulated connect failed"), nil)
 		}
 
 		err := runScoutsWithConfig(cmd, []string{
@@ -156,10 +112,50 @@ func Test_runScouts(t *testing.T) {
 		}
 	})
 
+	t.Run("uses protocol specific checker list", func(t *testing.T) {
+		var out bytes.Buffer
+		cmd := &cobra.Command{Use: "scout [urls...]"}
+		cmd.SetOut(&out)
+		origBuild := buildScoutManager
+		defer func() { buildScoutManager = origBuild }()
+		buildScoutManager = func(cfg scoutConfig) checker.Manager {
+			return buildTestManager(cfg, nil, nil)
+		}
+
+		err := runScoutsWithConfig(cmd, []string{
+			"ftp://ftp.example.com/resource",
+		}, scoutConfig{DNS: []string{"223.5.5.5", "8.8.8.8"}})
+		if err != nil {
+			t.Fatalf("runScouts() error = %v", err)
+		}
+
+		got := strings.TrimSpace(out.String())
+		want := strings.TrimSpace(`
+[SYSTEM]
+🔍 当前DNS：8.8.8.8, 223.5.5.5
+
+[ftp://ftp.example.com/resource]
+✅ 文件格式检查 - 输入格式合法
+✅ DNS解析 - ftp.example.com在当前DNS解析到1.2.3.4
+✅ DNS解析 - ftp.example.com在223.5.5.5解析到1.2.3.4
+✅ DNS解析 - ftp.example.com在8.8.8.8解析到1.2.3.4`)
+		if got != want {
+			t.Fatalf("runScouts output=%q want=%q", got, want)
+		}
+		if strings.Contains(got, "端口检测") {
+			t.Fatalf("ftp protocol should not run port checker, got: %q", got)
+		}
+	})
+
 	t.Run("returns error when format check fails", func(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
+		origBuild := buildScoutManager
+		defer func() { buildScoutManager = origBuild }()
+		buildScoutManager = func(cfg scoutConfig) checker.Manager {
+			return buildTestManager(cfg, nil, nil)
+		}
 
 		err := runScoutsWithConfig(cmd, []string{"google.com"}, scoutConfig{DNS: []string{"223.5.5.5", "8.8.8.8"}})
 		if err == nil {
