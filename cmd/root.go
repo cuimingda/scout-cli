@@ -11,6 +11,7 @@ import (
 
 var scoutDNSCheckEnabled bool
 var scoutPortCheckEnabled bool
+var scoutSystemCheckEnabled bool
 var scoutAllChecksEnabled bool
 
 // rootCmd represents the base command when called without any subcommands
@@ -28,6 +29,7 @@ scout udp://tracker.opentrackr.org:1337/announce`,
 func init() {
 	rootCmd.Flags().BoolVar(&scoutDNSCheckEnabled, "dns", false, "Enable DNS checks")
 	rootCmd.Flags().BoolVar(&scoutPortCheckEnabled, "port", false, "Enable port checks")
+	rootCmd.Flags().BoolVar(&scoutSystemCheckEnabled, "system", false, "Show system information")
 	rootCmd.Flags().BoolVar(&scoutAllChecksEnabled, "all", false, "Enable all optional checks")
 }
 

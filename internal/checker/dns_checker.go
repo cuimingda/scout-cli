@@ -10,7 +10,6 @@ type DNSChecker struct {
 	BaseChecker
 	extraResolvers []string
 	lookup         DNSLookupFunc
-	systemDNS      SystemDNSFunc
 	timeout        time.Duration
 }
 
@@ -18,10 +17,6 @@ func NewDNSChecker(opts DNSCheckerOptions) *DNSChecker {
 	lookup := opts.Lookup
 	if lookup == nil {
 		lookup = defaultDNSLookup
-	}
-	systemDNS := opts.SystemDNS
-	if systemDNS == nil {
-		systemDNS = currentSystemDNSes
 	}
 	timeout := opts.Timeout
 	if timeout == 0 {
@@ -32,17 +27,12 @@ func NewDNSChecker(opts DNSCheckerOptions) *DNSChecker {
 		BaseChecker:    BaseChecker{Name: "DNS解析"},
 		extraResolvers: append([]string(nil), opts.ExtraResolvers...),
 		lookup:         lookup,
-		systemDNS:      systemDNS,
 		timeout:        timeout,
 	}
 }
 
 func (c *DNSChecker) Definition() BaseChecker {
 	return c.BaseChecker
-}
-
-func (c *DNSChecker) SystemDNSes() ([]string, error) {
-	return c.systemDNS()
 }
 
 func (c *DNSChecker) Check(target Target) (Target, []Result) {

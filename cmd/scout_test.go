@@ -27,9 +27,6 @@ func buildTestManager(cfg scoutConfig, dialErr error, dnsErr error, dnsEnabled b
 		dnsChecker = checker.NewDNSChecker(checker.DNSCheckerOptions{
 			ExtraResolvers: cfg.DNS,
 			Timeout:        time.Second,
-			SystemDNS: func() ([]string, error) {
-				return []string{"8.8.8.8", "223.5.5.5"}, nil
-			},
 			Lookup: func(host, resolver string, _ time.Duration) ([]string, error) {
 				if dnsErr != nil {
 					return nil, dnsErr
@@ -41,7 +38,6 @@ func buildTestManager(cfg scoutConfig, dialErr error, dnsErr error, dnsEnabled b
 
 	return checker.NewManager(
 		formatChecker,
-		dnsChecker,
 		defaultProtocolCheckers(dnsChecker),
 		map[string][]checker.Checker{
 			"http":  protocolCheckersFor(portChecker, dnsChecker),
@@ -51,16 +47,32 @@ func buildTestManager(cfg scoutConfig, dialErr error, dnsErr error, dnsEnabled b
 	)
 }
 
-func setScoutFlags(dns bool, port bool, all bool) func() {
+func buildTestSystemManager(systemEnabled bool) checker.SystemManager {
+	if !systemEnabled {
+		return checker.NewSystemManager(nil)
+	}
+	return checker.NewSystemManager([]checker.SystemChecker{
+		checker.NewSystemDNSChecker(checker.SystemDNSCheckerOptions{
+			SystemDNS: func() ([]string, error) {
+				return []string{"8.8.8.8", "223.5.5.5"}, nil
+			},
+		}),
+	})
+}
+
+func setScoutFlags(dns bool, port bool, system bool, all bool) func() {
 	prevDNS := scoutDNSCheckEnabled
 	prevPort := scoutPortCheckEnabled
+	prevSystem := scoutSystemCheckEnabled
 	prevAll := scoutAllChecksEnabled
 	scoutDNSCheckEnabled = dns
 	scoutPortCheckEnabled = port
+	scoutSystemCheckEnabled = system
 	scoutAllChecksEnabled = all
 	return func() {
 		scoutDNSCheckEnabled = prevDNS
 		scoutPortCheckEnabled = prevPort
+		scoutSystemCheckEnabled = prevSystem
 		scoutAllChecksEnabled = prevAll
 	}
 }
@@ -70,12 +82,17 @@ func Test_runScouts(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
-		restoreFlags := setScoutFlags(false, false, false)
+		restoreFlags := setScoutFlags(false, false, false, false)
 		defer restoreFlags()
 		origBuild := buildScoutManager
+		origBuildSystem := buildSystemManager
 		defer func() { buildScoutManager = origBuild }()
+		defer func() { buildSystemManager = origBuildSystem }()
 		buildScoutManager = func(cfg scoutConfig, dnsEnabled, portEnabled bool) checker.Manager {
 			return buildTestManager(cfg, nil, nil, dnsEnabled, portEnabled)
+		}
+		buildSystemManager = func(systemEnabled bool) checker.SystemManager {
+			return buildTestSystemManager(systemEnabled)
 		}
 
 		err := runScoutsWithConfig(cmd, []string{
@@ -98,12 +115,17 @@ func Test_runScouts(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
-		restoreFlags := setScoutFlags(true, false, false)
+		restoreFlags := setScoutFlags(true, false, false, false)
 		defer restoreFlags()
 		origBuild := buildScoutManager
+		origBuildSystem := buildSystemManager
 		defer func() { buildScoutManager = origBuild }()
+		defer func() { buildSystemManager = origBuildSystem }()
 		buildScoutManager = func(cfg scoutConfig, dnsEnabled, portEnabled bool) checker.Manager {
 			return buildTestManager(cfg, nil, nil, dnsEnabled, portEnabled)
+		}
+		buildSystemManager = func(systemEnabled bool) checker.SystemManager {
+			return buildTestSystemManager(systemEnabled)
 		}
 
 		err := runScoutsWithConfig(cmd, []string{
@@ -115,9 +137,6 @@ func Test_runScouts(t *testing.T) {
 
 		got := strings.TrimSpace(out.String())
 		want := strings.TrimSpace(`
-[SYSTEM]
-🔍 当前DNS：8.8.8.8, 223.5.5.5
-
 [http://bdremux.club/announce]
 ✅ 文件格式检查 - 输入格式合法
 ✅ DNS解析 - bdremux.club在当前DNS解析到1.2.3.4
@@ -132,12 +151,17 @@ func Test_runScouts(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
-		restoreFlags := setScoutFlags(false, true, false)
+		restoreFlags := setScoutFlags(false, true, false, false)
 		defer restoreFlags()
 		origBuild := buildScoutManager
+		origBuildSystem := buildSystemManager
 		defer func() { buildScoutManager = origBuild }()
+		defer func() { buildSystemManager = origBuildSystem }()
 		buildScoutManager = func(cfg scoutConfig, dnsEnabled, portEnabled bool) checker.Manager {
 			return buildTestManager(cfg, fmt.Errorf("simulated connect failed"), nil, dnsEnabled, portEnabled)
+		}
+		buildSystemManager = func(systemEnabled bool) checker.SystemManager {
+			return buildTestSystemManager(systemEnabled)
 		}
 
 		err := runScoutsWithConfig(cmd, []string{
@@ -161,12 +185,17 @@ func Test_runScouts(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
-		restoreFlags := setScoutFlags(false, false, true)
+		restoreFlags := setScoutFlags(false, false, false, true)
 		defer restoreFlags()
 		origBuild := buildScoutManager
+		origBuildSystem := buildSystemManager
 		defer func() { buildScoutManager = origBuild }()
+		defer func() { buildSystemManager = origBuildSystem }()
 		buildScoutManager = func(cfg scoutConfig, dnsEnabled, portEnabled bool) checker.Manager {
 			return buildTestManager(cfg, nil, nil, dnsEnabled, portEnabled)
+		}
+		buildSystemManager = func(systemEnabled bool) checker.SystemManager {
+			return buildTestSystemManager(systemEnabled)
 		}
 
 		err := runScoutsWithConfig(cmd, []string{
@@ -196,12 +225,17 @@ func Test_runScouts(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
-		restoreFlags := setScoutFlags(true, true, false)
+		restoreFlags := setScoutFlags(true, true, false, false)
 		defer restoreFlags()
 		origBuild := buildScoutManager
+		origBuildSystem := buildSystemManager
 		defer func() { buildScoutManager = origBuild }()
+		defer func() { buildSystemManager = origBuildSystem }()
 		buildScoutManager = func(cfg scoutConfig, dnsEnabled, portEnabled bool) checker.Manager {
 			return buildTestManager(cfg, nil, nil, dnsEnabled, portEnabled)
+		}
+		buildSystemManager = func(systemEnabled bool) checker.SystemManager {
+			return buildTestSystemManager(systemEnabled)
 		}
 
 		err := runScoutsWithConfig(cmd, []string{
@@ -213,9 +247,6 @@ func Test_runScouts(t *testing.T) {
 
 		got := strings.TrimSpace(out.String())
 		want := strings.TrimSpace(`
-[SYSTEM]
-🔍 当前DNS：8.8.8.8, 223.5.5.5
-
 [https://www.google.com/]
 ✅ 文件格式检查 - 输入格式合法
 ✅ 端口检测 - www.google.com的443端口开放
@@ -231,12 +262,17 @@ func Test_runScouts(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
-		restoreFlags := setScoutFlags(false, false, true)
+		restoreFlags := setScoutFlags(false, false, false, false)
 		defer restoreFlags()
 		origBuild := buildScoutManager
+		origBuildSystem := buildSystemManager
 		defer func() { buildScoutManager = origBuild }()
+		defer func() { buildSystemManager = origBuildSystem }()
 		buildScoutManager = func(cfg scoutConfig, dnsEnabled, portEnabled bool) checker.Manager {
 			return buildTestManager(cfg, nil, nil, dnsEnabled, portEnabled)
+		}
+		buildSystemManager = func(systemEnabled bool) checker.SystemManager {
+			return buildTestSystemManager(systemEnabled)
 		}
 
 		err := runScoutsWithConfig(cmd, []string{"google.com"}, scoutConfig{DNS: []string{"223.5.5.5", "8.8.8.8"}})
@@ -258,7 +294,7 @@ func Test_runScouts(t *testing.T) {
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
 		cmd.SetErr(&errBuf)
-		restoreFlags := setScoutFlags(false, false, false)
+		restoreFlags := setScoutFlags(false, false, false, false)
 		defer restoreFlags()
 
 		err := runScoutsWithConfig(cmd, []string{"https://www.google.com", "https://www.github.com"}, scoutConfig{DNS: []string{"223.5.5.5", "8.8.8.8"}})
@@ -279,12 +315,17 @@ func Test_runScouts(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
-		restoreFlags := setScoutFlags(true, false, false)
+		restoreFlags := setScoutFlags(true, false, false, false)
 		defer restoreFlags()
 		origBuild := buildScoutManager
+		origBuildSystem := buildSystemManager
 		defer func() { buildScoutManager = origBuild }()
+		defer func() { buildSystemManager = origBuildSystem }()
 		buildScoutManager = func(cfg scoutConfig, dnsEnabled, portEnabled bool) checker.Manager {
 			return buildTestManager(cfg, nil, nil, dnsEnabled, portEnabled)
+		}
+		buildSystemManager = func(systemEnabled bool) checker.SystemManager {
+			return buildTestSystemManager(systemEnabled)
 		}
 
 		err := runScoutsWithConfig(cmd, []string{
@@ -296,14 +337,47 @@ func Test_runScouts(t *testing.T) {
 
 		got := strings.TrimSpace(out.String())
 		want := strings.TrimSpace(`
-[SYSTEM]
-🔍 当前DNS：8.8.8.8, 223.5.5.5
-
 [ftp://ftp.example.com/resource]
 ✅ 文件格式检查 - 输入格式合法
 ✅ DNS解析 - ftp.example.com在当前DNS解析到1.2.3.4
 ✅ DNS解析 - ftp.example.com在223.5.5.5解析到1.2.3.4
 ✅ DNS解析 - ftp.example.com在8.8.8.8解析到1.2.3.4`)
+		if got != want {
+			t.Fatalf("runScouts output=%q want=%q", got, want)
+		}
+	})
+
+	t.Run("prints system results when system flag enabled", func(t *testing.T) {
+		var out bytes.Buffer
+		cmd := &cobra.Command{Use: "scout [urls...]"}
+		cmd.SetOut(&out)
+		restoreFlags := setScoutFlags(false, false, true, false)
+		defer restoreFlags()
+		origBuild := buildScoutManager
+		origBuildSystem := buildSystemManager
+		defer func() { buildScoutManager = origBuild }()
+		defer func() { buildSystemManager = origBuildSystem }()
+		buildScoutManager = func(cfg scoutConfig, dnsEnabled, portEnabled bool) checker.Manager {
+			return buildTestManager(cfg, nil, nil, dnsEnabled, portEnabled)
+		}
+		buildSystemManager = func(systemEnabled bool) checker.SystemManager {
+			return buildTestSystemManager(systemEnabled)
+		}
+
+		err := runScoutsWithConfig(cmd, []string{
+			"http://bdremux.club/announce",
+		}, scoutConfig{DNS: []string{"223.5.5.5", "8.8.8.8"}})
+		if err != nil {
+			t.Fatalf("runScouts() error = %v", err)
+		}
+
+		got := strings.TrimSpace(out.String())
+		want := strings.TrimSpace(`
+[SYSTEM]
+🔍 当前DNS：8.8.8.8, 223.5.5.5
+
+[http://bdremux.club/announce]
+✅ 文件格式检查 - 输入格式合法`)
 		if got != want {
 			t.Fatalf("runScouts output=%q want=%q", got, want)
 		}

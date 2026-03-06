@@ -12,5 +12,5 @@ command = '''
 clear
 go test ./... && \
 go install ./cmd/scout && \
-scout http://bdremux.club/announce
+scout http://bdremux.club/announce --all
 '''

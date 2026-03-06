@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/cuimingda/scout-cli/internal/checker"
@@ -28,7 +27,6 @@ var buildScoutManager = func(cfg scoutConfig, dnsEnabled, portEnabled bool) chec
 
 	return checker.NewManager(
 		formatChecker,
-		dnsChecker,
 		defaultProtocolCheckers(dnsChecker),
 		map[string][]checker.Checker{
 			"http":  protocolCheckersFor(portChecker, dnsChecker),
@@ -36,6 +34,15 @@ var buildScoutManager = func(cfg scoutConfig, dnsEnabled, portEnabled bool) chec
 			"udp":   protocolCheckersFor(portChecker, dnsChecker),
 		},
 	)
+}
+
+var buildSystemManager = func(systemEnabled bool) checker.SystemManager {
+	if !systemEnabled {
+		return checker.NewSystemManager(nil)
+	}
+	return checker.NewSystemManager([]checker.SystemChecker{
+		checker.NewSystemDNSChecker(checker.SystemDNSCheckerOptions{}),
+	})
 }
 
 func runScouts(cmd *cobra.Command, args []string) error {
@@ -63,7 +70,17 @@ func runScoutsWithConfig(cmd *cobra.Command, args []string, cfg scoutConfig) err
 	}
 
 	raw := args[0]
-	dnsEnabled, portEnabled := enabledOptionalChecks()
+	dnsEnabled, portEnabled, systemEnabled := enabledOptionalChecks()
+	systemManager := buildSystemManager(systemEnabled)
+	_, systemResults := systemManager.Run()
+	if len(systemResults) > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "[SYSTEM]\n")
+		for _, result := range systemResults {
+			writeSystemLine(cmd.OutOrStdout(), result)
+		}
+		fmt.Fprint(cmd.OutOrStdout(), "\n")
+	}
+
 	manager := buildScoutManager(cfg, dnsEnabled, portEnabled)
 	_, results := manager.Run(raw)
 	if len(results) == 0 {
@@ -77,18 +94,6 @@ func runScoutsWithConfig(cmd *cobra.Command, args []string, cfg scoutConfig) err
 		return fmt.Errorf("format check failed")
 	}
 
-	if dnsEnabled {
-		systemDNS, _ := manager.SystemDNSes()
-		systemDNSDisplay := "unknown"
-		if len(systemDNS) > 0 {
-			systemDNSDisplay = strings.Join(systemDNS, ", ")
-		}
-		fmt.Fprintf(cmd.OutOrStdout(), "[SYSTEM]\n🔍 当前DNS：%s\n", systemDNSDisplay)
-	}
-
-	if dnsEnabled {
-		fmt.Fprint(cmd.OutOrStdout(), "\n")
-	}
 	fmt.Fprintf(cmd.OutOrStdout(), "[%s]\n", raw)
 	for _, result := range results {
 		writeCheckLine(cmd.OutOrStdout(), result)
@@ -96,11 +101,11 @@ func runScoutsWithConfig(cmd *cobra.Command, args []string, cfg scoutConfig) err
 	return nil
 }
 
-func enabledOptionalChecks() (bool, bool) {
+func enabledOptionalChecks() (bool, bool, bool) {
 	if scoutAllChecksEnabled {
-		return true, true
+		return true, true, true
 	}
-	return scoutDNSCheckEnabled, scoutPortCheckEnabled
+	return scoutDNSCheckEnabled, scoutPortCheckEnabled, scoutSystemCheckEnabled
 }
 
 func defaultProtocolCheckers(dnsChecker *checker.DNSChecker) []checker.Checker {
@@ -127,6 +132,14 @@ func writeCheckLine(out io.Writer, check checker.Result) {
 		mark = "❌"
 	}
 	fmt.Fprintf(out, "%s %s - %s\n", mark, check.Name, check.Detail)
+}
+
+func writeSystemLine(out io.Writer, check checker.Result) {
+	if check.OK {
+		fmt.Fprintf(out, "🔍 %s：%s\n", check.Name, check.Detail)
+		return
+	}
+	fmt.Fprintf(out, "❌ %s - %s\n", check.Name, check.Detail)
 }
 
 func printValidationError(cmd *cobra.Command, err error) {
