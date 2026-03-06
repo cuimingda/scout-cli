@@ -9,6 +9,10 @@ import (
 )
 
 func runScouts(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return cmd.Help()
+	}
+
 	cfg, err := loadScoutConfig()
 	if err != nil {
 		printValidationError(cmd, err)
@@ -22,13 +26,18 @@ func runScoutsWithConfig(cmd *cobra.Command, args []string, cfg scoutConfig) err
 		return cmd.Help()
 	}
 
-	invalidURLs := validateConnectionURLs(args)
-	if len(invalidURLs) > 0 {
-		for _, err := range invalidURLs {
-			printValidationError(cmd, err)
-		}
-		printValidationSummary(cmd, len(args), len(invalidURLs))
-		return fmt.Errorf("one or more URLs are invalid")
+	if len(args) > 1 {
+		err := fmt.Errorf("scout一次只能处理一个输入，当前收到%d个", len(args))
+		printValidationError(cmd, err)
+		return err
+	}
+
+	raw := args[0]
+	target, formatCheck := executeFormatCheck(raw)
+	if !formatCheck.ok {
+		fmt.Fprintf(cmd.OutOrStdout(), "[%s]\n", raw)
+		writeCheckLine(cmd.OutOrStdout(), formatCheck)
+		return fmt.Errorf("format check failed")
 	}
 
 	systemDNS, _ := detectSystemDNS()
@@ -38,15 +47,14 @@ func runScoutsWithConfig(cmd *cobra.Command, args []string, cfg scoutConfig) err
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "[SYSTEM]\n🔍 当前DNS：%s\n", systemDNSDisplay)
 
-	for _, raw := range args {
-		fmt.Fprintf(cmd.OutOrStdout(), "\n[%s]\n", raw)
-		executePortChecksStreaming([]string{raw}, func(check checkPlanResult) {
-			writeCheckLine(cmd.OutOrStdout(), check)
-		})
-		executeDNSChecksStreamingWithResolvers([]string{raw}, cfg.DNS, func(check checkPlanResult) {
-			writeCheckLine(cmd.OutOrStdout(), check)
-		})
-	}
+	fmt.Fprintf(cmd.OutOrStdout(), "\n[%s]\n", raw)
+	writeCheckLine(cmd.OutOrStdout(), formatCheck)
+	executePortChecksStreaming(target, func(check checkPlanResult) {
+		writeCheckLine(cmd.OutOrStdout(), check)
+	})
+	executeDNSChecksStreamingWithResolvers(target, cfg.DNS, func(check checkPlanResult) {
+		writeCheckLine(cmd.OutOrStdout(), check)
+	})
 	return nil
 }
 

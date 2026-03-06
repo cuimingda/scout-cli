@@ -8,35 +8,36 @@ import (
 )
 
 func Test_buildPortCheckPlans(t *testing.T) {
-	urls := []string{
-		"http://bdremux.club/announce",
-		"udp://tracker.opentrackr.org:1337/announce",
-		"https://www.google.com/",
-	}
-	plans, errs := buildPortCheckPlans(urls)
-	if len(errs) != 0 {
-		t.Fatalf("unexpected errors: %v", errs)
-	}
-	if len(plans) != 3 {
-		t.Fatalf("got %d plans, want 3", len(plans))
+	tests := []struct {
+		name        string
+		raw         string
+		wantNetwork string
+		wantHost    string
+		wantPort    int
+	}{
+		{name: "http", raw: "http://bdremux.club/announce", wantNetwork: "tcp", wantHost: "bdremux.club", wantPort: 80},
+		{name: "udp", raw: "udp://tracker.opentrackr.org:1337/announce", wantNetwork: "udp", wantHost: "tracker.opentrackr.org", wantPort: 1337},
+		{name: "https", raw: "https://www.google.com/", wantNetwork: "tcp", wantHost: "www.google.com", wantPort: 443},
 	}
 
-	if plans[0].url != "http://bdremux.club/announce" {
-		t.Fatalf("got url %q", plans[0].url)
-	}
-	if plans[0].network != "tcp" || plans[0].host != "bdremux.club" || plans[0].port != 80 {
-		t.Fatalf("unexpected http plan: %+v", plans[0])
-	}
-	if plans[1].network != "udp" || plans[1].host != "tracker.opentrackr.org" || plans[1].port != 1337 {
-		t.Fatalf("unexpected udp plan: %+v", plans[1])
-	}
-	if plans[2].network != "tcp" || plans[2].host != "www.google.com" || plans[2].port != 443 {
-		t.Fatalf("unexpected https plan: %+v", plans[2])
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan, err := buildPortCheckPlan(mustBuildScoutTarget(t, tt.raw))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if plan == nil {
+				t.Fatal("expected plan, got nil")
+			}
+			if plan.network != tt.wantNetwork || plan.host != tt.wantHost || plan.port != tt.wantPort {
+				t.Fatalf("unexpected plan: %+v", *plan)
+			}
+		})
 	}
 }
 
 func Test_executePortChecks(t *testing.T) {
-	urls := []string{
+	raws := []string{
 		"http://bdremux.club/announce",
 		"udp://tracker.opentrackr.org:1337/announce",
 		"https://www.google.com/",
@@ -51,17 +52,13 @@ func Test_executePortChecks(t *testing.T) {
 		return nil
 	}
 
-	reports := executePortChecks(urls)
-	if len(reports) != len(urls) {
-		t.Fatalf("got %d reports, want %d", len(reports), len(urls))
-	}
-
-	for i, report := range reports {
-		if len(report.checks) != 1 {
-			t.Fatalf("url[%d]=%s got %d checks, want 1", i, report.url, len(report.checks))
+	for i, raw := range raws {
+		checks := executePortChecks(mustBuildScoutTarget(t, raw))
+		if len(checks) != 1 {
+			t.Fatalf("raw[%d]=%s got %d checks, want 1", i, raw, len(checks))
 		}
-		if !report.checks[0].ok {
-			t.Fatalf("url[%d]=%s expected success", i, report.url)
+		if !checks[0].ok {
+			t.Fatalf("raw[%d]=%s expected success", i, raw)
 		}
 	}
 
@@ -77,7 +74,7 @@ func Test_executePortChecks(t *testing.T) {
 }
 
 func Test_executePortChecks_collects_all_errors(t *testing.T) {
-	urls := []string{
+	raws := []string{
 		"udp://tracker.opentrackr.org:1337/announce",
 		"https://www.google.com/",
 	}
@@ -90,16 +87,16 @@ func Test_executePortChecks_collects_all_errors(t *testing.T) {
 		return fmt.Errorf("mocked failure for %s://%s", network, address)
 	}
 
-	reports := executePortChecks(urls)
-	for _, report := range reports {
-		if len(report.checks) != 1 {
-			t.Fatalf("url=%s got %d checks, want 1", report.url, len(report.checks))
+	for _, raw := range raws {
+		checks := executePortChecks(mustBuildScoutTarget(t, raw))
+		if len(checks) != 1 {
+			t.Fatalf("raw=%s got %d checks, want 1", raw, len(checks))
 		}
-		if report.checks[0].ok {
-			t.Fatalf("url=%s expected failure", report.url)
+		if checks[0].ok {
+			t.Fatalf("raw=%s expected failure", raw)
 		}
-		if !strings.Contains(report.checks[0].detail, "端口未开放") {
-			t.Fatalf("unexpected detail: %s", report.checks[0].detail)
+		if !strings.Contains(checks[0].detail, "端口未开放") {
+			t.Fatalf("unexpected detail: %s", checks[0].detail)
 		}
 	}
 }

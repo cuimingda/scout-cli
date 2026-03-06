@@ -10,7 +10,6 @@ import (
 )
 
 type portCheckPlan struct {
-	url     string
 	network string
 	host    string
 	port    int
@@ -36,39 +35,25 @@ var detectDial = func(network, address string, timeout time.Duration) error {
 	return nil
 }
 
-func buildPortCheckPlans(rawURLs []string) ([]portCheckPlan, []error) {
-	var plans []portCheckPlan
-	var errs []error
-
-	for _, raw := range rawURLs {
-		u, err := url.Parse(raw)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("invalid URL %q: %w", raw, err))
-			continue
-		}
-
-		if !urlHasPortCheck(u) {
-			continue
-		}
-
-		port, err := resolvePort(u)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("invalid URL %q: %w", raw, err))
-			continue
-		}
-		if port == 0 {
-			continue
-		}
-
-		plans = append(plans, portCheckPlan{
-			url:     raw,
-			network: resolveNetwork(u.Scheme),
-			host:    u.Hostname(),
-			port:    port,
-		})
+func buildPortCheckPlan(target scoutTarget) (*portCheckPlan, error) {
+	u := target.parsed
+	if !urlHasPortCheck(u) {
+		return nil, nil
 	}
 
-	return plans, errs
+	port, err := resolvePort(u)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL %q: %w", target.raw, err)
+	}
+	if port == 0 {
+		return nil, nil
+	}
+
+	return &portCheckPlan{
+		network: resolveNetwork(u.Scheme),
+		host:    u.Hostname(),
+		port:    port,
+	}, nil
 }
 
 func urlHasPortCheck(u *url.URL) bool {

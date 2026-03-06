@@ -11,9 +11,9 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:     "scout [urls...]",
-	Short:   "Scout one or more protocol-based connections",
-	Long:    "Scout validates one or more complete protocol URLs and prints each valid input.",
+	Use:     "scout <url>",
+	Short:   "Scout a protocol-based connection",
+	Long:    "Scout validates one complete protocol URL and runs format, port, and DNS checks for that input.",
 	Example: `scout https://www.google.com/sitemap.xml
 scout udp://tracker.opentrackr.org:1337/announce`,
 	RunE:        runScouts,

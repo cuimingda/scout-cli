@@ -10,6 +10,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func mustBuildScoutTarget(t *testing.T, raw string) scoutTarget {
+	t.Helper()
+
+	target, err := buildScoutTarget(raw)
+	if err != nil {
+		t.Fatalf("buildScoutTarget(%q) error = %v", raw, err)
+	}
+	return target
+}
+
 func Test_validateConnectionURL(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -33,8 +43,36 @@ func Test_validateConnectionURL(t *testing.T) {
 	}
 }
 
+func Test_executeFormatCheck(t *testing.T) {
+	t.Run("valid input", func(t *testing.T) {
+		target, check := executeFormatCheck("https://www.google.com/sitemap.xml")
+		if !check.ok {
+			t.Fatalf("expected success, got %+v", check)
+		}
+		if check.name != "文件格式检查" || check.detail != "输入格式合法" {
+			t.Fatalf("unexpected check: %+v", check)
+		}
+		if target.raw != "https://www.google.com/sitemap.xml" || target.parsed == nil {
+			t.Fatalf("unexpected target: %+v", target)
+		}
+	})
+
+	t.Run("invalid input", func(t *testing.T) {
+		_, check := executeFormatCheck("google.com")
+		if check.ok {
+			t.Fatalf("expected failure, got %+v", check)
+		}
+		if check.name != "文件格式检查" {
+			t.Fatalf("unexpected check name: %+v", check)
+		}
+		if !strings.Contains(check.detail, "invalid URL \"google.com\": missing protocol") {
+			t.Fatalf("unexpected detail: %s", check.detail)
+		}
+	})
+}
+
 func Test_runScouts(t *testing.T) {
-	t.Run("prints grouped check results", func(t *testing.T) {
+	t.Run("prints format, port and DNS results for single input", func(t *testing.T) {
 		var out bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
@@ -54,8 +92,6 @@ func Test_runScouts(t *testing.T) {
 
 		err := runScoutsWithConfig(cmd, []string{
 			"http://bdremux.club/announce",
-			"udp://tracker.opentrackr.org:1337/announce",
-			"https://www.google.com/",
 		}, scoutConfig{DNS: []string{"223.5.5.5", "8.8.8.8"}})
 		if err != nil {
 			t.Fatalf("runScouts() error = %v", err)
@@ -67,22 +103,11 @@ func Test_runScouts(t *testing.T) {
 🔍 当前DNS：8.8.8.8, 223.5.5.5
 
 [http://bdremux.club/announce]
+✅ 文件格式检查 - 输入格式合法
 ✅ 端口检测 - bdremux.club的80端口开放
 ✅ DNS解析 - bdremux.club在当前DNS解析到1.2.3.4
 ✅ DNS解析 - bdremux.club在223.5.5.5解析到1.2.3.4
-✅ DNS解析 - bdremux.club在8.8.8.8解析到1.2.3.4
-
-[udp://tracker.opentrackr.org:1337/announce]
-✅ 端口检测 - tracker.opentrackr.org的1337端口开放
-✅ DNS解析 - tracker.opentrackr.org在当前DNS解析到1.2.3.4
-✅ DNS解析 - tracker.opentrackr.org在223.5.5.5解析到1.2.3.4
-✅ DNS解析 - tracker.opentrackr.org在8.8.8.8解析到1.2.3.4
-
-[https://www.google.com/]
-✅ 端口检测 - www.google.com的443端口开放
-✅ DNS解析 - www.google.com在当前DNS解析到1.2.3.4
-✅ DNS解析 - www.google.com在223.5.5.5解析到1.2.3.4
-✅ DNS解析 - www.google.com在8.8.8.8解析到1.2.3.4`)
+✅ DNS解析 - bdremux.club在8.8.8.8解析到1.2.3.4`)
 		if got != want {
 			t.Fatalf("runScouts output=%q want=%q", got, want)
 		}
@@ -110,7 +135,6 @@ func Test_runScouts(t *testing.T) {
 
 		err := runScoutsWithConfig(cmd, []string{
 			"http://bdremux.club/announce",
-			"udp://tracker.opentrackr.org:1337/announce",
 		}, scoutConfig{DNS: []string{"223.5.5.5", "8.8.8.8"}})
 		if err != nil {
 			t.Fatalf("runScouts() error = %v", err)
@@ -122,37 +146,47 @@ func Test_runScouts(t *testing.T) {
 🔍 当前DNS：8.8.8.8, 223.5.5.5
 
 [http://bdremux.club/announce]
+✅ 文件格式检查 - 输入格式合法
 ❌ 端口检测 - bdremux.club的80端口未开放（simulated connect failed）
 ✅ DNS解析 - bdremux.club在当前DNS解析到1.2.3.4
 ✅ DNS解析 - bdremux.club在223.5.5.5解析到1.2.3.4
-✅ DNS解析 - bdremux.club在8.8.8.8解析到1.2.3.4
-
-[udp://tracker.opentrackr.org:1337/announce]
-❌ 端口检测 - tracker.opentrackr.org的1337端口未开放（simulated connect failed）
-✅ DNS解析 - tracker.opentrackr.org在当前DNS解析到1.2.3.4
-✅ DNS解析 - tracker.opentrackr.org在223.5.5.5解析到1.2.3.4
-✅ DNS解析 - tracker.opentrackr.org在8.8.8.8解析到1.2.3.4`)
+✅ DNS解析 - bdremux.club在8.8.8.8解析到1.2.3.4`)
 		if got != want {
 			t.Fatalf("runScouts output=%q want=%q", got, want)
 		}
 	})
 
-	t.Run("returns all errors when args invalid", func(t *testing.T) {
+	t.Run("returns error when format check fails", func(t *testing.T) {
+		var out bytes.Buffer
+		cmd := &cobra.Command{Use: "scout [urls...]"}
+		cmd.SetOut(&out)
+
+		err := runScoutsWithConfig(cmd, []string{"google.com"}, scoutConfig{DNS: []string{"223.5.5.5", "8.8.8.8"}})
+		if err == nil {
+			t.Fatal("runScouts() expected error")
+		}
+
+		got := strings.TrimSpace(out.String())
+		want := strings.TrimSpace(`
+[google.com]
+❌ 文件格式检查 - invalid URL "google.com": missing protocol`)
+		if got != want {
+			t.Fatalf("runScouts output=%q want=%q", got, want)
+		}
+	})
+
+	t.Run("rejects multiple inputs", func(t *testing.T) {
 		var out, errBuf bytes.Buffer
 		cmd := &cobra.Command{Use: "scout [urls...]"}
 		cmd.SetOut(&out)
 		cmd.SetErr(&errBuf)
 
-		err := runScoutsWithConfig(cmd, []string{"google.com", "https://", "https://www.google.com"}, scoutConfig{DNS: []string{"223.5.5.5", "8.8.8.8"}})
+		err := runScoutsWithConfig(cmd, []string{"https://www.google.com", "https://www.github.com"}, scoutConfig{DNS: []string{"223.5.5.5", "8.8.8.8"}})
 		if err == nil {
 			t.Fatal("runScouts() expected error")
 		}
 
-		wantErr := strings.Join([]string{
-			fmt.Sprintf("\x1b[31m[ERROR]\x1b[0m invalid URL %q: missing protocol", "google.com"),
-			fmt.Sprintf("\x1b[31m[ERROR]\x1b[0m invalid URL %q: missing host", "https://"),
-			"Summary: total=3, invalid=2",
-		}, "\n") + "\n"
+		wantErr := fmt.Sprintf("\x1b[31m[ERROR]\x1b[0m scout一次只能处理一个输入，当前收到%d个\n", 2)
 		if errBuf.String() != wantErr {
 			t.Fatalf("runScouts() error output = %q, want = %q", errBuf.String(), wantErr)
 		}
