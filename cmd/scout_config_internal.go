@@ -3,9 +3,15 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/adrg/xdg"
 	"github.com/spf13/viper"
+)
+
+var (
+	currentGOOS   = runtime.GOOS
+	userConfigDir = os.UserConfigDir
 )
 
 func loadScoutConfig() (scoutConfig, error) {
@@ -38,6 +44,11 @@ func loadScoutConfig() (scoutConfig, error) {
 func resolveScoutConfigPath() string {
 	if envPath := os.Getenv("SCOUT_CONFIG"); envPath != "" {
 		return envPath
+	}
+	if currentGOOS == "darwin" {
+		if configDir, err := userConfigDir(); err == nil && configDir != "" {
+			return filepath.Join(configDir, "mingda.dev", "scout", "config.yaml")
+		}
 	}
 	return filepath.Join(xdg.ConfigHome, "scout", "config.yaml")
 }

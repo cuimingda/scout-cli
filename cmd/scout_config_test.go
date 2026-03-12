@@ -6,6 +6,49 @@ import (
 	"testing"
 )
 
+func Test_resolveScoutConfigPath_prefersEnvOverride(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	t.Setenv("SCOUT_CONFIG", configPath)
+
+	originalGOOS := currentGOOS
+	originalUserConfigDir := userConfigDir
+	t.Cleanup(func() {
+		currentGOOS = originalGOOS
+		userConfigDir = originalUserConfigDir
+	})
+
+	currentGOOS = "darwin"
+	userConfigDir = func() (string, error) {
+		return filepath.Join(t.TempDir(), "Library", "Application Support"), nil
+	}
+
+	if got := resolveScoutConfigPath(); got != configPath {
+		t.Fatalf("resolveScoutConfigPath() = %q, want %q", got, configPath)
+	}
+}
+
+func Test_resolveScoutConfigPath_onDarwinUsesDeveloperScopedPath(t *testing.T) {
+	t.Setenv("SCOUT_CONFIG", "")
+
+	originalGOOS := currentGOOS
+	originalUserConfigDir := userConfigDir
+	t.Cleanup(func() {
+		currentGOOS = originalGOOS
+		userConfigDir = originalUserConfigDir
+	})
+
+	configRoot := filepath.Join(t.TempDir(), "Library", "Application Support")
+	currentGOOS = "darwin"
+	userConfigDir = func() (string, error) {
+		return configRoot, nil
+	}
+
+	want := filepath.Join(configRoot, "mingda.dev", "scout", "config.yaml")
+	if got := resolveScoutConfigPath(); got != want {
+		t.Fatalf("resolveScoutConfigPath() = %q, want %q", got, want)
+	}
+}
+
 func Test_loadScoutConfig_withoutConfigReturnsDefault(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	t.Setenv("SCOUT_CONFIG", configPath)
